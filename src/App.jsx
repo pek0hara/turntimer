@@ -50,6 +50,7 @@ function SetupScreen({ onStart, initialSettings }) {
   const [minutes,    setMinutes]    = useState(initialSettings ? Math.floor(initialSettings.initialTime / 60) : 5)
   const [seconds,    setSeconds]    = useState(initialSettings ? initialSettings.initialTime % 60 : 0)
   const [increment,  setIncrement]  = useState(initialSettings?.increment ?? 10)
+  const [passMode,   setPassMode]   = useState(initialSettings?.passMode ?? false)
   const [names, setNames] = useState(
     initialSettings
       ? [...initialSettings.names, ...Array.from({ length: 8 - initialSettings.names.length }, (_, i) => `プレイヤー ${initialSettings.names.length + i + 1}`)]
@@ -65,7 +66,7 @@ function SetupScreen({ onStart, initialSettings }) {
   const handleStart = () => {
     const t = minutes * 60 + seconds
     if (t === 0) return
-    onStart({ numPlayers, initialTime: t, increment, names: names.slice(0, numPlayers) })
+    onStart({ numPlayers, initialTime: t, increment, passMode, names: names.slice(0, numPlayers) })
   }
 
   return (
@@ -136,6 +137,24 @@ function SetupScreen({ onStart, initialSettings }) {
         </div>
       </section>
 
+      {/* ── Pass mode ── */}
+      <section className="setup-section">
+        <div className="setup-label">パス機能（大富豪など）</div>
+        <div className="toggle-row">
+          <button
+            className={`toggle-btn ${passMode ? 'toggle-btn--on' : ''}`}
+            onClick={() => setPassMode(v => !v)}
+          >
+            {passMode ? 'ON' : 'OFF'}
+          </button>
+          <span className="toggle-desc">
+            {passMode
+              ? 'パス・場流れリセット機能が有効です'
+              : 'パス機能を使わない通常モード'}
+          </span>
+        </div>
+      </section>
+
       {/* ── Player names ── */}
       <section className="setup-section">
         <div className="setup-label">プレイヤー名</div>
@@ -190,6 +209,7 @@ function GameScreen({ settings, onReset }) {
       name,
       color: PLAYER_COLORS[i],
       timeRemaining: settings.initialTime,
+      passed: false,
     })),
     currentPlayer: 0,
     isRunning: false,
@@ -289,15 +309,16 @@ function GameScreen({ settings, onReset }) {
           : p
       )
 
-      // 2. Find next alive player
+      // 2. Find next alive (and non-passed) player
       let next = (currentPlayer + 1) % n
       let attempts = 0
-      while (withIncrement[next].timeRemaining <= 0 && attempts < n) {
+      const shouldSkip = (p) => p.timeRemaining <= 0 || (settings.passMode && p.passed)
+      while (shouldSkip(withIncrement[next]) && attempts < n) {
         next = (next + 1) % n
         attempts++
       }
 
-      // If no alive players remain, stop
+      // If no valid players remain, stop
       if (attempts >= n) {
         return { ...prev, players: withIncrement, isRunning: false }
       }
@@ -307,6 +328,60 @@ function GameScreen({ settings, onReset }) {
       return { ...prev, players: withIncrement, currentPlayer: next }
     })
   }, [settings, getAudio])
+
+  // ── Handle Pass ──
+  const handlePass = useCallback(() => {
+    if (!gameRef.current.isRunning) return
+
+    playBeep(getAudio(), 330, 0.08, 0.2)
+
+    setGame(prev => {
+      const { players, currentPlayer } = prev
+      const n = settings.numPlayers
+
+      // 1. Apply Fischer increment to current player (if alive)
+      const withIncrement = players.map((p, i) =>
+        i === currentPlayer && p.timeRemaining > 0 && settings.increment > 0
+          ? { ...p, timeRemaining: p.timeRemaining + settings.increment }
+          : p
+      )
+
+      // 2. Mark current player as passed
+      const withPassed = withIncrement.map((p, i) =>
+        i === currentPlayer ? { ...p, passed: true } : p
+      )
+
+      // 3. Check if all alive players are now passed → auto round reset
+      const alive = withPassed.filter(p => p.timeRemaining > 0)
+      const allPassed = alive.length > 0 && alive.every(p => p.passed)
+      const finalPlayers = allPassed
+        ? withPassed.map(p => ({ ...p, passed: false }))
+        : withPassed
+
+      // 4. Find next alive non-passed player
+      let next = (currentPlayer + 1) % n
+      let attempts = 0
+      while ((finalPlayers[next].timeRemaining <= 0 || finalPlayers[next].passed) && attempts < n) {
+        next = (next + 1) % n
+        attempts++
+      }
+      if (attempts >= n) {
+        return { ...prev, players: finalPlayers, isRunning: false }
+      }
+
+      lowWarnedRef.current = false
+      lastTickRef.current = performance.now()
+      return { ...prev, players: finalPlayers, currentPlayer: next }
+    })
+  }, [settings, getAudio])
+
+  // ── Handle Round Reset (場流れ) ──
+  const handleRoundReset = useCallback(() => {
+    setGame(prev => ({
+      ...prev,
+      players: prev.players.map(p => ({ ...p, passed: false })),
+    }))
+  }, [])
 
   // ── Handle Eliminate ──
   const handleEliminate = useCallback((targetIdx) => {
@@ -396,6 +471,7 @@ function GameScreen({ settings, onReset }) {
         {players.map((p, i) => {
           const isActive     = i === currentPlayer && !isGameOver
           const isDead       = p.timeRemaining <= 0
+          const isPassed     = settings.passMode && p.passed && !isDead
           const isLow        = isActive && p.timeRemaining > 0 && p.timeRemaining <= 10
           const isSelectable = !hasStarted && !isDead && !isActive
           return (
@@ -405,6 +481,7 @@ function GameScreen({ settings, onReset }) {
                 'card',
                 isActive     ? 'card--active'     : '',
                 isDead       ? 'card--dead'        : '',
+                isPassed     ? 'card--passed'      : '',
                 isLow        ? 'card--low'         : '',
                 isSelectable ? 'card--selectable'  : '',
               ].join(' ')}
@@ -430,10 +507,23 @@ function GameScreen({ settings, onReset }) {
               )}
               <div className="card-name">{p.name}</div>
               <div className="card-time">{isDead ? 'OUT' : formatTime(p.timeRemaining)}</div>
+              {isPassed && !isActive && (
+                <div className="card-hint card-hint--passed">パス中</div>
+              )}
               {isActive && !isDead && (
-                <div className="card-hint">
-                  {!hasStarted ? 'タップしてスタート' : 'タップして次へ'}
-                </div>
+                <>
+                  <div className="card-hint">
+                    {!hasStarted ? 'タップしてスタート' : 'タップして次へ'}
+                  </div>
+                  {settings.passMode && hasStarted && (
+                    <button
+                      className="pass-btn"
+                      onClick={e => { e.stopPropagation(); handlePass() }}
+                    >
+                      パス
+                    </button>
+                  )}
+                </>
               )}
               {isSelectable && (
                 <div className="card-hint card-hint--select">先攻にする</div>
@@ -450,6 +540,11 @@ function GameScreen({ settings, onReset }) {
           <button className="next-btn" onClick={handleNext}>
             {!hasStarted ? 'スタート' : '次のプレイヤー →'}
           </button>
+          {settings.passMode && hasStarted && (
+            <button className="round-reset-btn" onClick={handleRoundReset}>
+              場流れ
+            </button>
+          )}
           {settings.increment > 0 && hasStarted && (
             <div className="inc-label">フィッシャー +{settings.increment}秒 / ターン</div>
           )}

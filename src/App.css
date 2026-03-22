@@ -568,3 +568,87 @@ body {
     font-size: clamp(2.5rem, 5vw, 4rem);
   }
 }
+
+/* ── Pass Mode Toggle (Setup) ─────────────────────────────────────────────── */
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toggle-btn {
+  width: 64px;
+  height: 36px;
+  border-radius: 18px;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.toggle-btn--on {
+  background: rgba(91, 156, 246, 0.18);
+  border-color: #5b9cf6;
+  color: #5b9cf6;
+}
+
+.toggle-desc {
+  font-size: 0.82rem;
+  color: var(--text-2);
+  line-height: 1.4;
+}
+
+/* ── Passed card state ────────────────────────────────────────────────────── */
+
+.card--passed {
+  opacity: 0.55;
+}
+
+.card-hint--passed {
+  color: #f39c12;
+  font-weight: 700;
+  font-size: clamp(0.6rem, 1.5vw, 0.78rem);
+}
+
+/* ── Pass button (on active card) ─────────────────────────────────────────── */
+
+.pass-btn {
+  margin-top: 4px;
+  padding: 5px 18px;
+  background: rgba(243, 156, 18, 0.15);
+  border: 1.5px solid #f39c12;
+  border-radius: 20px;
+  color: #f39c12;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  z-index: 2;
+}
+
+.pass-btn:hover  { background: rgba(243, 156, 18, 0.28); }
+.pass-btn:active { transform: scale(0.96); }
+
+/* ── Round reset button (場流れ, footer) ──────────────────────────────────── */
+
+.round-reset-btn {
+  width: 100%;
+  max-width: 400px;
+  height: 40px;
+  background: rgba(243, 156, 18, 0.1);
+  border: 1.5px solid #f39c12;
+  border-radius: var(--radius-lg);
+  color: #f39c12;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.round-reset-btn:hover  { background: rgba(243, 156, 18, 0.22); }
+.round-reset-btn:active { transform: scale(0.98); }
