@@ -312,6 +312,16 @@ body {
   animation: pulse-ring 2s ease-in-out infinite;
 }
 
+/* Selectable card (pre-game first-player selection) */
+.card--selectable {
+  cursor: pointer;
+}
+
+.card--selectable:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: #222630;
+}
+
 /* Dead card */
 .card--dead {
   opacity: 0.35;
@@ -400,6 +410,11 @@ body {
 
 .card-hint--dead {
   color: #666;
+}
+
+.card-hint--select {
+  color: var(--text-2);
+  opacity: 0.7;
 }
 
 /* Footer */

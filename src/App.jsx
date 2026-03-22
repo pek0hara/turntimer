@@ -258,6 +258,12 @@ function GameScreen({ settings, onReset }) {
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }
   }, [game.isRunning])
 
+  // ── Select First Player (before game starts) ──
+  const handleSelectFirst = useCallback((i) => {
+    if (gameRef.current.hasStarted) return
+    setGame(prev => ({ ...prev, currentPlayer: i }))
+  }, [])
+
   // ── Handle Next Turn ──
   const handleNext = useCallback(() => {
     // First tap: start game
@@ -388,20 +394,30 @@ function GameScreen({ settings, onReset }) {
       {/* Player grid */}
       <div className="grid" style={{ '--cols': cols }}>
         {players.map((p, i) => {
-          const isActive = i === currentPlayer && !isGameOver
-          const isDead   = p.timeRemaining <= 0
-          const isLow    = isActive && p.timeRemaining > 0 && p.timeRemaining <= 10
+          const isActive     = i === currentPlayer && !isGameOver
+          const isDead       = p.timeRemaining <= 0
+          const isLow        = isActive && p.timeRemaining > 0 && p.timeRemaining <= 10
+          const isSelectable = !hasStarted && !isDead && !isActive
           return (
             <div
               key={i}
               className={[
                 'card',
-                isActive ? 'card--active' : '',
-                isDead   ? 'card--dead'   : '',
-                isLow    ? 'card--low'    : '',
+                isActive     ? 'card--active'     : '',
+                isDead       ? 'card--dead'        : '',
+                isLow        ? 'card--low'         : '',
+                isSelectable ? 'card--selectable'  : '',
               ].join(' ')}
               style={{ '--c': p.color }}
-              onClick={() => isActive && !isDead && handleNext()}
+              onClick={() => {
+                if (isDead) return
+                if (!hasStarted) {
+                  if (!isActive) handleSelectFirst(i)
+                  else handleNext()
+                } else if (isActive) {
+                  handleNext()
+                }
+              }}
             >
               {hasStarted && !isDead && !isGameOver && (
                 <button
@@ -418,6 +434,9 @@ function GameScreen({ settings, onReset }) {
                 <div className="card-hint">
                   {!hasStarted ? 'タップしてスタート' : 'タップして次へ'}
                 </div>
+              )}
+              {isSelectable && (
+                <div className="card-hint card-hint--select">先攻にする</div>
               )}
               {isDead && <div className="card-hint card-hint--dead">脱落</div>}
             </div>
